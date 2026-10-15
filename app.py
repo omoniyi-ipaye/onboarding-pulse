@@ -1,356 +1,275 @@
-#!/usr/bin/env python3
-"""Onboarding Pulse — FastAPI backend + dashboard."""
+"""Feedback Gauge — standalone FastAPI twin of omoniyios /pulse."""
 from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-
-import requests
 import asyncio
-from fastapi import FastAPI, HTTPException, Query, Request
+from pathlib import Path
+from typing import Any
+
+import httpx
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from fastapi.templating import Jinja2Templates
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
-SCORES_PATH = DATA / "scores.json"
-API_KEY_PATH = Path.home() / ".config" / "typesafe" / "api_key"
 API_URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-latest"
+INTERVAL_MS = 1000
+MAX_EVENTS = 22
 
-# Same questions as score_signals.py
+app = FastAPI(title="Feedback Gauge")
+app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
+templates = Jinja2Templates(directory=str(ROOT / "templates"))
+
 QUESTIONS = {
-    "category": {
+    "theme": {
         "type": "choice",
-        "instructions": (
-            "You are scoring a signal from a new hire in their first 90 days. "
-            "What is the primary issue category this signal is about?"
-        ),
+        "instructions": "Which Culture Amp–style engagement driver is this feedback primarily about?",
         "criteria": {
-            "access_tools": "Blocked or delayed access to tools, accounts, repos, VPN, SaaS, hardware",
-            "role_clarity": "Unclear expectations, mandate, goals, ownership or decision rights",
-            "manager_support": "Manager unavailable, unhelpful, or not giving feedback/direction",
-            "social_isolation": "Loneliness, timezone exclusion, weak buddy/team connection",
-            "workload": "Overloaded, catching up after delays, burnout risk, unsustainable pace",
-            "admin_payroll": "Payroll, benefits, visas, expenses, HR admin paperwork",
-            "none": "Positive, neutral, or no onboarding problem",
+            "leadership": "Manager quality, senior leadership trust, decision clarity, sponsorship",
+            "belonging": "Inclusion, psychological safety, team connection, remote belonging",
+            "growth": "Learning, career path, stretch, promotion readiness",
+            "workload": "Pace, burnout, staffing, sustainable capacity",
+            "recognition": "Acknowledgement, celebration of wins, feeling valued",
+            "enablement": "Tools, resources, training, process support to do the job",
+            "alignment": "Strategy clarity, priorities, OKRs, knowing how work connects",
         },
     },
-    "frustration": {
+    "engagement_health": {
         "type": "score",
-        "instructions": "How frustrated is the new hire (or how much frustration does this signal express)?",
+        "instructions": "How healthy/positive is this feedback for employee engagement?",
         "criteria": [
-            "Calm / positive / no frustration",
-            "Mild annoyance",
-            "Clearly frustrated",
-            "Highly frustrated or angry",
+            "Clearly negative or demoralizing for engagement",
+            "Mostly concerning with limited positives",
+            "Mixed or mildly constructive",
+            "Clearly positive / affirming engagement",
         ],
     },
-    "confusion": {
+    "flight_risk": {
         "type": "score",
-        "instructions": "How confused is the new hire about their role, tools, or how things work?",
+        "instructions": "How much does this suggest attrition or serious disengagement risk?",
         "criteria": [
-            "Clear / confident",
-            "Slightly unsure",
-            "Moderately confused",
-            "Very confused or lost",
+            "No attrition or disengagement signal",
+            "Mild dissatisfaction without exit language",
+            "Strong frustration or conditional stay language",
+            "Explicit or near-explicit intent to leave / protect health by leaving",
         ],
     },
-    "intent_to_leave": {
-        "type": "noul",
-        "instructions": "Does this signal show intent to leave, regret joining, or active job searching?",
-        "criteria": {
-            "true": "Explicit or strongly implied desire to quit, regret joining, or looking elsewhere",
-            "false": "No leave intent; may be unhappy but not signalling exit",
-        },
-    },
-    "blocked_from_work": {
-        "type": "noul",
-        "instructions": "Is this person currently blocked from doing their core work?",
-        "criteria": {
-            "true": "Cannot perform primary job duties due to missing access, unclear ownership, or similar",
-            "false": "Able to do meaningful work despite friction",
-        },
+    "performance_signal": {
+        "type": "score",
+        "instructions": "Where does this sit between performance strength and performance concern?",
+        "criteria": [
+            "Clear performance strength or high contribution",
+            "Neutral / not about individual performance",
+            "Mild performance or enablement concern",
+            "Serious performance, capacity, or delivery concern",
+        ],
     },
 }
 
-app = FastAPI(title="Onboarding Pulse", docs_url=None, redoc_url=None)
-app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
-
-
-def load_scores() -> dict:
-    if not SCORES_PATH.is_file():
-        raise HTTPException(503, "scores.json missing — run score_signals.py first")
-    return json.loads(SCORES_PATH.read_text())
-
 
 def api_key() -> str:
-    env = os.environ.get("TYPESAFE_API_KEY", "").strip()
-    if env:
-        return env
-    if API_KEY_PATH.is_file():
-        return API_KEY_PATH.read_text().strip()
-    raise HTTPException(500, "TypeSafe API key not configured on server")
+    return (os.environ.get("TYPESAFE_API_KEY") or "").strip() or _file_key()
+
+
+def _file_key() -> str:
+    p = Path.home() / ".config/typesafe/api_key"
+    try:
+        return p.read_text().strip()
+    except OSError:
+        return ""
+
+
+def composite(eng: int, flight: int, perf: int) -> tuple[int, float]:
+    e, f, c = eng / 3, flight / 3, perf / 3
+    gauge = round((0.5 * e + 0.3 * (1 - f) + 0.2 * (1 - c)) * 100)
+    risk = round((0.45 * f + 0.35 * (1 - e) + 0.2 * c) * 10000) / 10000
+    return gauge, risk
+
+
+def load_json(name: str) -> Any:
+    return json.loads((DATA / name).read_text())
 
 
 @app.get("/", response_class=HTMLResponse)
-def index():
-    return (ROOT / "templates" / "index.html").read_text()
+async def index(request: Request):
+    dashboard = load_json("dashboard.json")
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "dashboard": dashboard, "product": "Feedback Gauge"},
+    )
 
 
 @app.get("/api/dashboard")
-def dashboard():
-    data = load_scores()
-    return {
-        "meta": data["meta"],
-        "aggregates": data["aggregates"],
-    }
-
-
-@app.get("/api/hire/{hire_id}")
-def hire_detail(hire_id: str):
-    data = load_scores()
-    for h in data["aggregates"]["hires"]:
-        if h["id"] == hire_id:
-            return h
-    raise HTTPException(404, "Hire not found")
-
-
-class ScoreRequest(BaseModel):
-    text: str = Field(..., min_length=3, max_length=2000)
-    channel: str = Field(default="slack")
-    day: int = Field(default=30, ge=1, le=90)
-    role: str = Field(default="New hire")
-    team: str = Field(default="Unknown")
+async def dashboard():
+    return load_json("dashboard.json")
 
 
 @app.post("/api/score")
-def score_live(body: ScoreRequest):
+async def score(body: dict[str, Any]):
+    text = (body.get("text") or "").strip()
+    if len(text) < 3 or len(text) > 2000:
+        return JSONResponse({"error": "text must be 3–2000 chars"}, status_code=400)
+    channel = body.get("channel") or "survey"
     key = api_key()
-    state = {
-        "hire": {
-            "role": body.role,
-            "team": body.team,
-            "days_since_start_when_signal": body.day,
+    if not key:
+        return _heuristic(text)
+    payload = {
+        "state": {
+            "employee": {"role": body.get("role") or "Employee", "team": body.get("team") or "Unknown"},
+            "feedback": {"channel": channel, "text": text},
+            "context": "Harbor Labs demo. Culture Amp–style feedback. Judge only the text.",
+            "company": "Harbor Labs (fictional)",
         },
-        "signal": {"channel": body.channel, "text": body.text},
-        "context": (
-            "This is an onboarding health signal from a new employee's first 90 days. "
-            "Judge only what the signal itself shows."
-        ),
+        "model": MODEL,
+        "questions": QUESTIONS,
     }
-    payload = {"state": state, "model": MODEL, "questions": QUESTIONS}
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     try:
-        resp = requests.post(API_URL, headers=headers, json=payload, timeout=45)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        raise HTTPException(502, f"Jev request failed: {e}") from e
-    result = resp.json()
-    answers = result["answers"]
-    fru = answers["frustration"]["score"] / 3.0
-    conf = answers["confusion"]["score"] / 3.0
-    intent = answers["intent_to_leave"]["noul"]
-    blocked = answers["blocked_from_work"]["noul"]
-    risk = 0.20 * fru + 0.15 * conf + 0.40 * intent + 0.25 * blocked
-    return {
-        "model": result.get("model"),
-        "category": answers["category"]["choice"],
-        "category_probabilities": answers["category"]["probabilities"],
-        "category_confidence": answers["category"]["confidence"],
-        "frustration": answers["frustration"]["score"],
-        "confusion": answers["confusion"]["score"],
-        "intent_to_leave": intent,
-        "blocked_from_work": blocked,
-        "risk": round(risk, 4),
-        "usage": result.get("usage"),
-    }
-
-
-
-def _compute_risk(frustration: float, confusion: float, intent: float, blocked: float) -> float:
-    fru = frustration / 3.0
-    conf = confusion / 3.0
-    return round(0.20 * fru + 0.15 * conf + 0.40 * intent + 0.25 * blocked, 4)
-
-
-def _load_stream_signals(limit: int = 22) -> list[dict]:
-    example = json.loads((DATA / "example_signals.json").read_text())
-    scores = json.loads(SCORES_PATH.read_text())
-    cache = {}
-    for s in scores.get("signals", []):
-        cache[s["signal_id"]] = {
-            "category": s["category"],
-            "category_confidence": s["category_confidence"],
-            "frustration": s["frustration"],
-            "confusion": s["confusion"],
-            "intent_to_leave": s["intent_to_leave"],
-            "blocked_from_work": s["blocked_from_work"],
-            "risk": _compute_risk(
-                s["frustration"], s["confusion"], s["intent_to_leave"], s["blocked_from_work"]
-            ),
-        }
-    flat = []
-    for h in example["hires"]:
-        for s in h["signals"]:
-            flat.append(
-                {
-                    "signal_id": s["id"],
-                    "hire_id": h["id"],
-                    "hire": h["name"],
-                    "team": h["team"],
-                    "role": h["role"],
-                    "day": s["day"],
-                    "channel": s["channel"],
-                    "text": s["text"],
-                    "cached": cache.get(s["id"]),
-                }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.post(
+                API_URL,
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json=payload,
             )
-    flat.sort(key=lambda x: ((x["cached"] or {}).get("risk", 0), x["day"]), reverse=True)
-    return flat[:limit]
+        if resp.status_code != 200:
+            out = _heuristic(text)
+            out["warning"] = f"Jev {resp.status_code}; heuristic"
+            return out
+        result = resp.json()
+        a = result["answers"]
+        eng = a["engagement_health"]["score"]
+        flight = a["flight_risk"]["score"]
+        perf = a["performance_signal"]["score"]
+        gauge, risk = composite(eng, flight, perf)
+        return {
+            "model": result.get("model"),
+            "theme": a["theme"]["choice"],
+            "theme_confidence": a["theme"]["confidence"],
+            "engagement_health": eng,
+            "flight_risk": flight,
+            "performance_signal": perf,
+            "gauge": gauge,
+            "risk": risk,
+            "source": "jev",
+        }
+    except Exception as exc:  # noqa: BLE001
+        out = _heuristic(text)
+        out["warning"] = f"{exc}; heuristic"
+        return out
 
 
-def _snapshot(seen: list[dict]) -> dict:
-    n = len(seen)
-    avg = sum(x["risk"] for x in seen) / n if n else 0.0
-    hire_max: dict[str, float] = {}
-    cat_count: dict[str, int] = {}
-    for s in seen:
-        hire_max[s["hire_id"]] = max(hire_max.get(s["hire_id"], 0.0), s["risk"])
-        cat_count[s["category"]] = cat_count.get(s["category"], 0) + 1
-    at_risk = critical = high = 0
-    for r in hire_max.values():
-        if r >= 0.45:
-            at_risk += 1
-            critical += 1
-        elif r >= 0.28:
-            at_risk += 1
-            high += 1
-    top, top_n = "none", -1
-    for c, count in cat_count.items():
-        if c == "none":
-            continue
-        if count > top_n:
-            top, top_n = c, count
+def _heuristic(text: str) -> dict[str, Any]:
+    t = text.lower()
+    theme = "alignment"
+    for name, needles in [
+        ("leadership", ["manager", "leadership", "exec", "decision"]),
+        ("belonging", ["belong", "team", "remote", "timezone"]),
+        ("growth", ["growth", "career", "promot", "stretch"]),
+        ("workload", ["workload", "burn", "exhaust", "unsustainable"]),
+        ("recognition", ["recognit", "celebrat", "valued"]),
+        ("enablement", ["enable", "tool", "pipeline", "budget"]),
+        ("alignment", ["align", "priorit", "okr", "strategy"]),
+    ]:
+        if any(n in t for n in needles):
+            theme = name
+            break
+    leave = any(x in t for x in ["looking", "quit", "leave", "step down"])
+    neg = sum(t.count(w) for w in ["burn", "exhaust", "frustrated", "unsustainable", "waiting"])
+    eng = 0 if leave or neg >= 3 else (1 if neg >= 2 else (3 if "excellent" in t or "proud" in t else 2))
+    flight = 3 if leave else (2 if neg >= 2 else (1 if neg else 0))
+    perf = 3 if leave else (2 if "burn" in t or "exhaust" in t else 1)
+    gauge, risk = composite(eng, flight, perf)
     return {
-        "type": "snapshot",
-        "kpis": {
-            "total_hires": len(hire_max),
-            "hires_at_risk": at_risk,
-            "avg_risk": round(avg, 4),
-            "top_issue": top,
-            "critical_count": critical,
-            "high_count": high,
-            "signals_scored": n,
-        },
-        "atRiskCount": at_risk,
+        "model": "heuristic-v1",
+        "theme": theme,
+        "theme_confidence": 0.65,
+        "engagement_health": eng,
+        "flight_risk": flight,
+        "performance_signal": perf,
+        "gauge": gauge,
+        "risk": risk,
+        "source": "heuristic",
     }
+
+
+def _flat_signals() -> list[dict[str, Any]]:
+    example = load_json("example_signals.json")
+    scores = load_json("scores.json")
+    people = {p["id"]: p for p in example["people"]}
+    cache = {s["signal_id"]: s for s in scores["signals"]}
+    flat = []
+    for s in example["signals"]:
+        person = people.get(s["person_id"])
+        if not person:
+            continue
+        c = cache.get(s["id"])
+        flat.append(
+            {
+                "signal_id": s["id"],
+                "person_id": s["person_id"],
+                "person": person["name"],
+                "team": person["team"],
+                "role": person["role"],
+                "period": s["period"],
+                "channel": s["channel"],
+                "text": s["text"],
+                "cached": c,
+            }
+        )
+    flat.sort(key=lambda x: (-(x["cached"] or {}).get("risk", 0), -x["period"]))
+    return flat[:MAX_EVENTS]
 
 
 @app.get("/api/stream")
-async def stream_signals(request: Request, live: int = Query(0)):
-    """SSE feed of example signals. Finite ~22 events (~25s). Replay from the client."""
-    signals = _load_stream_signals(22)
-    key = ""
-    try:
-        key = api_key() if live == 1 else ""
-    except HTTPException:
-        key = ""
+async def stream(request: Request):
+    signals = _flat_signals()
 
     async def gen():
-        def pack(obj: dict) -> str:
-            return f"data: {json.dumps(obj)}\n\n"
-
-        yield pack(
-            {
-                "type": "meta",
-                "total": len(signals),
-                "interval_ms": 1000,
-                "live_jev": bool(key),
-                "note": "Finite pass (~22 events). Use Replay to restart.",
-            }
-        )
-        seen: list[dict] = []
+        meta = {
+            "type": "meta",
+            "total": len(signals),
+            "interval_ms": INTERVAL_MS,
+            "product": "Feedback Gauge",
+        }
+        yield f"data: {json.dumps(meta)}\n\n"
         for i, sig in enumerate(signals):
             if await request.is_disconnected():
                 break
-            scores = sig.get("cached")
-            source = "cache" if scores else "none"
-            if key:
-                try:
-                    body = ScoreRequest(
-                        text=sig["text"],
-                        channel=sig["channel"],
-                        day=sig["day"],
-                        role=sig["role"],
-                        team=sig["team"],
-                    )
-                    # Run sync Jev call in thread; fall back to cache on failure
-                    live_result = await asyncio.to_thread(score_live, body)
-                    scores = {
-                        "category": live_result["category"],
-                        "category_confidence": live_result["category_confidence"],
-                        "frustration": live_result["frustration"],
-                        "confusion": live_result["confusion"],
-                        "intent_to_leave": live_result["intent_to_leave"],
-                        "blocked_from_work": live_result["blocked_from_work"],
-                        "risk": live_result["risk"],
-                    }
-                    source = "jev"
-                except Exception:
-                    pass
-            category = (scores or {}).get("category", "none")
-            risk = (scores or {}).get("risk", 0.0)
-            yield pack(
-                {
-                    "type": "signal",
-                    "id": sig["signal_id"],
-                    "hire_id": sig["hire_id"],
-                    "hire": sig["hire"],
-                    "team": sig["team"],
-                    "text": sig["text"],
-                    "channel": sig["channel"],
-                    "day": sig["day"],
-                    "scores": scores,
-                    "risk": risk,
-                    "source": source,
-                    "index": i + 1,
-                    "total": len(signals),
+            c = sig.get("cached") or {}
+            evt = {
+                "type": "signal",
+                "id": sig["signal_id"],
+                "person_id": sig["person_id"],
+                "person": sig["person"],
+                "team": sig["team"],
+                "text": sig["text"],
+                "channel": sig["channel"],
+                "period": sig["period"],
+                "scores": {
+                    "theme": c.get("theme"),
+                    "engagement_health": c.get("engagement_health"),
+                    "flight_risk": c.get("flight_risk"),
+                    "performance_signal": c.get("performance_signal"),
+                    "gauge": c.get("gauge_delta"),
                 }
-            )
-            seen.append(
-                {
-                    "hire_id": sig["hire_id"],
-                    "team": sig["team"],
-                    "category": category,
-                    "risk": risk,
-                }
-            )
-            if (i + 1) % 3 == 0 or i == len(signals) - 1:
-                yield pack(_snapshot(seen))
+                if c
+                else None,
+                "risk": c.get("risk", 0),
+                "gauge": c.get("gauge_delta", 70),
+                "source": "cache",
+                "index": i + 1,
+                "total": len(signals),
+            }
+            yield f"data: {json.dumps(evt)}\n\n"
             if i < len(signals) - 1:
-                await asyncio.sleep(1.0)
-        yield pack({"type": "done", "count": len(seen)})
+                await asyncio.sleep(INTERVAL_MS / 1000)
+        yield f"data: {json.dumps({'type': 'done', 'count': len(signals)})}\n\n"
 
     return StreamingResponse(
         gen(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-@app.get("/api/health")
-def health():
-    ok = SCORES_PATH.is_file()
-    return {"ok": ok, "scores": ok}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=False)
