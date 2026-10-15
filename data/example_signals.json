@@ -1,0 +1,410 @@
+{
+  "_meta": {
+    "label": "EXAMPLE DATA — fictional Consensys-style cohort for demo only",
+    "generated_for": "Onboarding Pulse MVP",
+    "as_of": "2026-10-15",
+    "note": "All names, tickets and quotes are invented. No real employee data."
+  },
+  "teams": ["Protocol Engineering", "Product Design", "People Ops", "Security", "Growth Marketing"],
+  "hires": [
+    {
+      "id": "H001",
+      "name": "Amina Okonkwo",
+      "role": "Smart Contract Engineer",
+      "team": "Protocol Engineering",
+      "manager": "Luis Navarro",
+      "location": "Madrid",
+      "start_date": "2026-08-04",
+      "signals": [
+        {"id": "S001a", "day": 3, "channel": "slack", "text": "Hey — still waiting on GitHub enterprise access and the Forge repo. Can't clone anything yet."},
+        {"id": "S001b", "day": 7, "channel": "ticket", "text": "Laptop shipped without VPN certs. Ticket #IT-4412. Blocked from staging."},
+        {"id": "S001c", "day": 14, "channel": "checkin", "text": "Week 2 check-in: tools finally worked yesterday. Still unclear who owns the gas-optimization backlog."},
+        {"id": "S001d", "day": 28, "channel": "buddy", "text": "Buddy note: Amina is sharp but hasn't met half the protocol team. Suggest a coffee round."},
+        {"id": "S001e", "day": 42, "channel": "slack", "text": "Is there a written onboarding path for auditors? I've been guessing what 'done' looks like for my first PR."},
+        {"id": "S001f", "day": 55, "channel": "checkin", "text": "Day 55: feeling more settled. First mainnet-related PR merged. Manager 1:1s are helpful."}
+      ]
+    },
+    {
+      "id": "H002",
+      "name": "Marcus Chen",
+      "role": "Protocol Researcher",
+      "team": "Protocol Engineering",
+      "manager": "Luis Navarro",
+      "location": "Remote — Berlin",
+      "start_date": "2026-07-21",
+      "signals": [
+        {"id": "S002a", "day": 5, "channel": "slack", "text": "Anybody else finding the research wiki completely outdated? Links from 2024."},
+        {"id": "S002b", "day": 12, "channel": "checkin", "text": "Unsure how my research goals map to the Q3 roadmap. Manager was OOO my first week."},
+        {"id": "S002c", "day": 21, "channel": "buddy", "text": "Marcus seems isolated — remote and mostly async. Rarely joins research standups."},
+        {"id": "S002d", "day": 35, "channel": "slack", "text": "Honestly wondering if I should have stayed in academia. Feels like I'm writing docs nobody reads."},
+        {"id": "S002e", "day": 48, "channel": "ticket", "text": "Request: access to internal research Discord that was promised in offer. Still pending."},
+        {"id": "S002f", "day": 60, "channel": "checkin", "text": "60-day check-in: low energy. Considering whether this role matches what was sold in interviews."},
+        {"id": "S002g", "day": 72, "channel": "slack", "text": "Skipped the all-hands again. Camera off when I do join. Not sure anyone notices."}
+      ]
+    },
+    {
+      "id": "H003",
+      "name": "Sofia Bergström",
+      "role": "Solidity Engineer",
+      "team": "Protocol Engineering",
+      "manager": "Luis Navarro",
+      "location": "Madrid",
+      "start_date": "2026-09-01",
+      "signals": [
+        {"id": "S003a", "day": 2, "channel": "ticket", "text": "Payroll form rejected — Spanish NIE number format issue. HR ticket #HR-882."},
+        {"id": "S003b", "day": 8, "channel": "slack", "text": "Got my first ticket assigned! Excited. Buddy walkthrough of the monorepo was great."},
+        {"id": "S003c", "day": 18, "channel": "checkin", "text": "Feeling good. Clear goals, good mentorship. Only hiccup is slow CI."},
+        {"id": "S003d", "day": 30, "channel": "buddy", "text": "Sofia is thriving. Already mentoring an intern informally."}
+      ]
+    },
+    {
+      "id": "H004",
+      "name": "Jordan Blake",
+      "role": "Infrastructure Engineer",
+      "team": "Protocol Engineering",
+      "manager": "Luis Navarro",
+      "location": "Remote — London",
+      "start_date": "2026-08-18",
+      "signals": [
+        {"id": "S004a", "day": 4, "channel": "slack", "text": "AWS SSO still broken for me. Third follow-up to IT."},
+        {"id": "S004b", "day": 11, "channel": "ticket", "text": "Critical: cannot deploy to staging. Entire first sprint blocked."},
+        {"id": "S004c", "day": 19, "channel": "checkin", "text": "Access fixed but I've lost two weeks. Feeling behind peers who started same day."},
+        {"id": "S004d", "day": 33, "channel": "slack", "text": "Workload is intense now that access works — catching up on three sprints of debt."},
+        {"id": "S004e", "day": 47, "channel": "buddy", "text": "Jordan working late most nights. Flagging burnout risk to manager."},
+        {"id": "S004f", "day": 61, "channel": "checkin", "text": "Still drowning. Manager acknowledges but no capacity adjustment."}
+      ]
+    },
+    {
+      "id": "H005",
+      "name": "Priya Nair",
+      "role": "Product Designer",
+      "team": "Product Design",
+      "manager": "Elena Vargas",
+      "location": "Madrid",
+      "start_date": "2026-07-28",
+      "signals": [
+        {"id": "S005a", "day": 6, "channel": "slack", "text": "Where is the design system? Figma links in Notion are all expired."},
+        {"id": "S005b", "day": 15, "channel": "checkin", "text": "Role feels broader than JD — expected to own research AND visual design AND motion."},
+        {"id": "S005c", "day": 27, "channel": "buddy", "text": "Priya asked me if the team culture is always this chaotic. Seemed discouraged."},
+        {"id": "S005d", "day": 40, "channel": "slack", "text": "Another stakeholder bypassed me and redesigned a flow overnight. What's my mandate?"},
+        {"id": "S005e", "day": 55, "channel": "checkin", "text": "Considering looking around. Not feeling respected as a senior hire."},
+        {"id": "S005f", "day": 70, "channel": "ticket", "text": "Requested skip-level with Head of Product. Topic: role clarity and decision rights."}
+      ]
+    },
+    {
+      "id": "H006",
+      "name": "Tomás Ribeiro",
+      "role": "UX Researcher",
+      "team": "Product Design",
+      "manager": "Elena Vargas",
+      "location": "Remote — Lisbon",
+      "start_date": "2026-09-08",
+      "signals": [
+        {"id": "S006a", "day": 3, "channel": "slack", "text": "Thanks for the warm welcome! Already scheduled first user interviews."},
+        {"id": "S006b", "day": 14, "channel": "checkin", "text": "Great buddy. Clear OKRs. Only wish: better participant recruiting tooling."},
+        {"id": "S006c", "day": 28, "channel": "buddy", "text": "Tomás is a joy. Integrating fast with PMs."},
+        {"id": "S006d", "day": 35, "channel": "ticket", "text": "Minor: expense policy for user incentives unclear for EU participants."}
+      ]
+    },
+    {
+      "id": "H007",
+      "name": "Hannah Weiss",
+      "role": "Design Systems Lead",
+      "team": "Product Design",
+      "manager": "Elena Vargas",
+      "location": "Madrid",
+      "start_date": "2026-08-11",
+      "signals": [
+        {"id": "S007a", "day": 5, "channel": "slack", "text": "Can someone introduce me to the founders of the old design system? Nobody seems to own it."},
+        {"id": "S007b", "day": 16, "channel": "checkin", "text": "Manager support is strong. Scope is huge though — rebuilding tokens from scratch alone."},
+        {"id": "S007c", "day": 29, "channel": "buddy", "text": "Hannah working solo a lot. Suggest pairing her with an eng counterpart."},
+        {"id": "S007d", "day": 44, "channel": "slack", "text": "I love the mission but the isolation is real. Would help to have a design systems guild."},
+        {"id": "S007e", "day": 58, "channel": "checkin", "text": "Making progress. Hired an IC to help — feeling less alone."}
+      ]
+    },
+    {
+      "id": "H008",
+      "name": "Kai Nakamura",
+      "role": "Visual Designer",
+      "team": "Product Design",
+      "manager": "Elena Vargas",
+      "location": "Remote — Tokyo",
+      "start_date": "2026-09-15",
+      "signals": [
+        {"id": "S008a", "day": 4, "channel": "ticket", "text": "Timezone overlap with Madrid team is only 2 hours. Hard to join critiques."},
+        {"id": "S008b", "day": 12, "channel": "slack", "text": "Feeling left out of design decisions made in European morning standups."},
+        {"id": "S008c", "day": 22, "channel": "checkin", "text": "Social isolation is my biggest issue. Async feedback is slow and thin."},
+        {"id": "S008d", "day": 30, "channel": "buddy", "text": "Kai seems lonely. Recommend a Tokyo coworking stipend and async critique ritual."}
+      ]
+    },
+    {
+      "id": "H009",
+      "name": "Lina Haddad",
+      "role": "People Partner",
+      "team": "People Ops",
+      "manager": "Omoniyi Ipaye",
+      "location": "Madrid",
+      "start_date": "2026-08-25",
+      "signals": [
+        {"id": "S009a", "day": 2, "channel": "slack", "text": "Excited to join! Already shadowing ER cases."},
+        {"id": "S009b", "day": 10, "channel": "checkin", "text": "Clear expectations. Loving the PeopleOS tooling. One ask: Spanish labour law deep-dive."},
+        {"id": "S009c", "day": 24, "channel": "buddy", "text": "Lina is picking up fast. Strong cultural fit."},
+        {"id": "S009d", "day": 40, "channel": "ticket", "text": "Admin: need access to BambooHR admin role for Madrid headcount reports."},
+        {"id": "S009e", "day": 52, "channel": "checkin", "text": "Feeling confident. Running my first skip-levels next week."}
+      ]
+    },
+    {
+      "id": "H010",
+      "name": "Diego Fernández",
+      "role": "HRIS Analyst",
+      "team": "People Ops",
+      "manager": "Omoniyi Ipaye",
+      "location": "Madrid",
+      "start_date": "2026-07-14",
+      "signals": [
+        {"id": "S010a", "day": 6, "channel": "ticket", "text": "Workday sandbox login failed. Can't complete HRIS training modules."},
+        {"id": "S010b", "day": 18, "channel": "slack", "text": "Still no sandbox. Training is stuck. Getting frustrated."},
+        {"id": "S010c", "day": 32, "channel": "checkin", "text": "Access resolved week 4. Behind on learning plan. Manager supportive."},
+        {"id": "S010d", "day": 50, "channel": "buddy", "text": "Diego recovered well. Building trust with Finance partners."},
+        {"id": "S010e", "day": 75, "channel": "checkin", "text": "On track. Delivered first headcount dashboard. Happy I stayed."}
+      ]
+    },
+    {
+      "id": "H011",
+      "name": "Nora Sjöberg",
+      "role": "Talent Acquisition Lead",
+      "team": "People Ops",
+      "manager": "Omoniyi Ipaye",
+      "location": "Remote — Stockholm",
+      "start_date": "2026-09-01",
+      "signals": [
+        {"id": "S011a", "day": 5, "channel": "slack", "text": "Greenhouse seat not provisioned. Can't move candidates."},
+        {"id": "S011b", "day": 13, "channel": "checkin", "text": "Tools delayed but team is warm. Hiring plan for Q4 still fuzzy."},
+        {"id": "S011c", "day": 25, "channel": "buddy", "text": "Nora asking good questions about employer brand. Engaged."},
+        {"id": "S011d", "day": 38, "channel": "slack", "text": "Got Greenhouse. Now drowning in 40 open reqs with no prioritisation from leadership."},
+        {"id": "S011e", "day": 45, "channel": "checkin", "text": "Workload unsustainable without a sourcer. Flagging to manager."}
+      ]
+    },
+    {
+      "id": "H012",
+      "name": "James Okello",
+      "role": "L&D Specialist",
+      "team": "People Ops",
+      "manager": "Omoniyi Ipaye",
+      "location": "Madrid",
+      "start_date": "2026-08-04",
+      "signals": [
+        {"id": "S012a", "day": 8, "channel": "checkin", "text": "Great start. Building the new-hire curriculum. Manager gives clear feedback."},
+        {"id": "S012b", "day": 22, "channel": "slack", "text": "Need LMS admin rights — ticket open 9 days."},
+        {"id": "S012c", "day": 36, "channel": "buddy", "text": "James is a connector. Already improved buddy matching."},
+        {"id": "S012d", "day": 50, "channel": "checkin", "text": "Feeling productive and valued. Love this role."}
+      ]
+    },
+    {
+      "id": "H013",
+      "name": "Rachel Kim",
+      "role": "Security Engineer",
+      "team": "Security",
+      "manager": "Amir Hassan",
+      "location": "Remote — Seoul",
+      "start_date": "2026-07-21",
+      "signals": [
+        {"id": "S013a", "day": 3, "channel": "ticket", "text": "Need clearance for vulnerability scanner. Blocked."},
+        {"id": "S013b", "day": 14, "channel": "slack", "text": "Still waiting on scanner. Also no onboarding doc for incident response rota."},
+        {"id": "S013c", "day": 28, "channel": "checkin", "text": "Frustrated. Joined to do threat hunting, spending weeks on access tickets."},
+        {"id": "S013d", "day": 42, "channel": "buddy", "text": "Rachel mentioned she has another offer lingering. Take seriously."},
+        {"id": "S013e", "day": 56, "channel": "slack", "text": "Access finally granted. But I've lost momentum and trust in ops."},
+        {"id": "S013f", "day": 70, "channel": "checkin", "text": "Still thinking about leaving. Manager is trying but process is broken."},
+        {"id": "S013g", "day": 84, "channel": "slack", "text": "Updated LinkedIn. Recruiters noticing. Not sure I'll make 6 months."}
+      ]
+    },
+    {
+      "id": "H014",
+      "name": "Omar Al-Rashid",
+      "role": "AppSec Engineer",
+      "team": "Security",
+      "manager": "Amir Hassan",
+      "location": "Madrid",
+      "start_date": "2026-08-18",
+      "signals": [
+        {"id": "S014a", "day": 4, "channel": "slack", "text": "First week going well. Pairing with Amir on a pentest."},
+        {"id": "S014b", "day": 17, "channel": "checkin", "text": "Clear role. Good manager support. Want more social events with eng."},
+        {"id": "S014c", "day": 31, "channel": "buddy", "text": "Omar is solid. Slightly quiet in standups but engaged 1:1."},
+        {"id": "S014d", "day": 48, "channel": "ticket", "text": "Payroll: overtime classification for on-call unclear under Spanish law."},
+        {"id": "S014e", "day": 62, "channel": "checkin", "text": "Happy overall. On-call pay resolved. Settling in."}
+      ]
+    },
+    {
+      "id": "H015",
+      "name": "Chloe Martin",
+      "role": "GRC Analyst",
+      "team": "Security",
+      "manager": "Amir Hassan",
+      "location": "Remote — Paris",
+      "start_date": "2026-09-08",
+      "signals": [
+        {"id": "S015a", "day": 6, "channel": "slack", "text": "Who owns SOC2 evidence collection? Docs contradict each other."},
+        {"id": "S015b", "day": 15, "channel": "checkin", "text": "Role clarity is my pain point. Am I audit prep or policy writing?"},
+        {"id": "S015c", "day": 27, "channel": "buddy", "text": "Chloe needs a sharper RACI. She seems anxious about expectations."},
+        {"id": "S015d", "day": 36, "channel": "slack", "text": "Manager clarified scope today — relieved. Moving forward on policy refresh."}
+      ]
+    },
+    {
+      "id": "H016",
+      "name": "Ben Carter",
+      "role": "Detection Engineer",
+      "team": "Security",
+      "manager": "Amir Hassan",
+      "location": "Madrid",
+      "start_date": "2026-08-04",
+      "signals": [
+        {"id": "S016a", "day": 7, "channel": "ticket", "text": "SIEM write access denied. Can't ship detection rules."},
+        {"id": "S016b", "day": 20, "channel": "slack", "text": "Two weeks blocked. Escalating."},
+        {"id": "S016c", "day": 34, "channel": "checkin", "text": "Access fixed. Catching up. Workload spiked — fine for now."},
+        {"id": "S016d", "day": 50, "channel": "buddy", "text": "Ben is resilient. Watch workload over next month."},
+        {"id": "S016e", "day": 68, "channel": "checkin", "text": "Steady. Shipping detections weekly. Feeling useful."}
+      ]
+    },
+    {
+      "id": "H017",
+      "name": "Yuki Tanaka",
+      "role": "Growth Marketer",
+      "team": "Growth Marketing",
+      "manager": "Sara López",
+      "location": "Remote — NYC",
+      "start_date": "2026-07-28",
+      "signals": [
+        {"id": "S017a", "day": 5, "channel": "slack", "text": "HubSpot sandbox missing. Can't test nurture flows."},
+        {"id": "S017b", "day": 14, "channel": "checkin", "text": "Timezone + missing tools = slow start. Feeling peripheral."},
+        {"id": "S017c", "day": 28, "channel": "buddy", "text": "Yuki rarely speaks in standups. Possible isolation."},
+        {"id": "S017d", "day": 42, "channel": "slack", "text": "Campaign brief changed three times this week with no context. Exhausting."},
+        {"id": "S017e", "day": 56, "channel": "checkin", "text": "Considering whether remote growth role at a EU company can work for me."},
+        {"id": "S017f", "day": 74, "channel": "ticket", "text": "Requested part-time Madrid visit stipend. Want more face time."}
+      ]
+    },
+    {
+      "id": "H018",
+      "name": "Fatima Zahra",
+      "role": "Content Strategist",
+      "team": "Growth Marketing",
+      "manager": "Sara López",
+      "location": "Madrid",
+      "start_date": "2026-09-01",
+      "signals": [
+        {"id": "S018a", "day": 3, "channel": "slack", "text": "Love the brand voice guide. Already drafting the first newsletter."},
+        {"id": "S018b", "day": 12, "channel": "checkin", "text": "Manager 1:1s excellent. Clear priorities."},
+        {"id": "S018c", "day": 26, "channel": "buddy", "text": "Fatima is a star. High engagement."},
+        {"id": "S018d", "day": 40, "channel": "checkin", "text": "Thriving. Asking for stretch project on developer docs."}
+      ]
+    },
+    {
+      "id": "H019",
+      "name": "Eric Johansson",
+      "role": "Performance Marketer",
+      "team": "Growth Marketing",
+      "manager": "Sara López",
+      "location": "Remote — Stockholm",
+      "start_date": "2026-08-11",
+      "signals": [
+        {"id": "S019a", "day": 4, "channel": "ticket", "text": "Ad account spend limits not raised. Can't launch tests."},
+        {"id": "S019b", "day": 16, "channel": "slack", "text": "Still blocked on spend. Finance ticket bouncing."},
+        {"id": "S019c", "day": 30, "channel": "checkin", "text": "Frustrated. Joined at peak season and can't ship ads."},
+        {"id": "S019d", "day": 45, "channel": "buddy", "text": "Eric's morale dipping. Access finally granted day 40 — late."},
+        {"id": "S019e", "day": 60, "channel": "checkin", "text": "Recovering. First campaigns live. Still annoyed about the delay."}
+      ]
+    },
+    {
+      "id": "H020",
+      "name": "Maya Patel",
+      "role": "Community Manager",
+      "team": "Growth Marketing",
+      "manager": "Sara López",
+      "location": "Madrid",
+      "start_date": "2026-09-15",
+      "signals": [
+        {"id": "S020a", "day": 2, "channel": "slack", "text": "Discord mod tools access granted same day — wow. Great start."},
+        {"id": "S020b", "day": 10, "channel": "checkin", "text": "Feeling welcomed. Buddy is fantastic."},
+        {"id": "S020c", "day": 20, "channel": "buddy", "text": "Maya already hosting AMAs. Natural fit."},
+        {"id": "S020d", "day": 28, "channel": "ticket", "text": "Minor payroll: first paycheck currency preference (EUR vs USD)."}
+      ]
+    },
+    {
+      "id": "H021",
+      "name": "Andreas Müller",
+      "role": "Protocol Engineer",
+      "team": "Protocol Engineering",
+      "manager": "Luis Navarro",
+      "location": "Remote — Zurich",
+      "start_date": "2026-09-22",
+      "signals": [
+        {"id": "S021a", "day": 3, "channel": "slack", "text": "Dev environment setup guide is excellent. Up and coding on day 2."},
+        {"id": "S021b", "day": 10, "channel": "checkin", "text": "Smooth so far. Want clearer ownership of the light client workstream."},
+        {"id": "S021c", "day": 18, "channel": "buddy", "text": "Andreas is confident and collaborative."},
+        {"id": "S021d", "day": 23, "channel": "slack", "text": "Role clarity improved after roadmap session. All good."}
+      ]
+    },
+    {
+      "id": "H022",
+      "name": "Isabella Rossi",
+      "role": "People Analytics",
+      "team": "People Ops",
+      "manager": "Omoniyi Ipaye",
+      "location": "Madrid",
+      "start_date": "2026-09-22",
+      "signals": [
+        {"id": "S022a", "day": 4, "channel": "ticket", "text": "Need Looker viewer + Snowflake reader roles."},
+        {"id": "S022b", "day": 11, "channel": "slack", "text": "Access still pending. Can't explore attrition models yet."},
+        {"id": "S022c", "day": 18, "channel": "checkin", "text": "Slightly frustrated on tools but team culture is warm."},
+        {"id": "S022d", "day": 23, "channel": "buddy", "text": "Isabella eager. Suggest temporary CSV exports until access lands."}
+      ]
+    },
+    {
+      "id": "H023",
+      "name": "Noah Williams",
+      "role": "Brand Designer",
+      "team": "Product Design",
+      "manager": "Elena Vargas",
+      "location": "Remote — Austin",
+      "start_date": "2026-08-25",
+      "signals": [
+        {"id": "S023a", "day": 7, "channel": "slack", "text": "Hard to feel part of the team across the Atlantic. Standups at 6am my time."},
+        {"id": "S023b", "day": 21, "channel": "checkin", "text": "Social isolation is real. Few informal chats."},
+        {"id": "S023c", "day": 35, "channel": "buddy", "text": "Noah seems disconnected. Recommend timezone-friendly rituals."},
+        {"id": "S023d", "day": 49, "channel": "slack", "text": "Almost quit last week. Manager noticed and set weekly social coffee — helping."},
+        {"id": "S023e", "day": 63, "channel": "checkin", "text": "Still remote-hard but better. Not actively looking anymore."}
+      ]
+    },
+    {
+      "id": "H024",
+      "name": "Sara Ahmed",
+      "role": "Compliance Engineer",
+      "team": "Security",
+      "manager": "Amir Hassan",
+      "location": "Madrid",
+      "start_date": "2026-09-15",
+      "signals": [
+        {"id": "S024a", "day": 5, "channel": "checkin", "text": "Onboarding checklist was thorough. Feeling prepared."},
+        {"id": "S024b", "day": 14, "channel": "slack", "text": "Quick question on MiCA evidence folders — answered in minutes. Great."},
+        {"id": "S024c", "day": 22, "channel": "buddy", "text": "Sara is calm and methodical. Low risk."},
+        {"id": "S024d", "day": 28, "channel": "ticket", "text": "Admin: need DocuSign sender rights for vendor DPAs."}
+      ]
+    },
+    {
+      "id": "H025",
+      "name": "Leo Santos",
+      "role": "Lifecycle Marketer",
+      "team": "Growth Marketing",
+      "manager": "Sara López",
+      "location": "Madrid",
+      "start_date": "2026-08-04",
+      "signals": [
+        {"id": "S025a", "day": 6, "channel": "slack", "text": "Customer.io access delayed. Building journeys in a spreadsheet meanwhile."},
+        {"id": "S025b", "day": 19, "channel": "checkin", "text": "Tools finally up. Scope of lifecycle vs growth ops still blurry."},
+        {"id": "S025c", "day": 33, "channel": "buddy", "text": "Leo wants clearer swimlanes with product marketing."},
+        {"id": "S025d", "day": 48, "channel": "slack", "text": "Manager clarified ownership. Feeling better. Shipping first nurture."},
+        {"id": "S025e", "day": 65, "channel": "checkin", "text": "Good place. Would have left if role stayed fuzzy past day 45."},
+        {"id": "S025f", "day": 80, "channel": "buddy", "text": "Leo is stable and producing. Solid retention outlook."}
+      ]
+    }
+  ]
+}
