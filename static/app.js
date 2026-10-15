@@ -1,4 +1,4 @@
-/* Onboarding Pulse — dense Overview · Live SSE · Interventions */
+/* Onboarding Pulse — single Overview dashboard with live SSE */
 const CAT_LABELS = {
   access_tools: "Access / tools",
   role_clarity: "Role clarity",
@@ -9,41 +9,15 @@ const CAT_LABELS = {
   none: "None",
 };
 const CAT_ORDER = Object.keys(CAT_LABELS);
-const CATEGORY_ACTIONS = {
-  access_tools: [
-    { title: "Unblock GitHub / SSO within 24h", detail: "Confirm accounts, repos, VPN.", owner: "IT / Ops" },
-    { title: "Access audit with hire", detail: "Walk the tool checklist together.", owner: "Manager" },
-  ],
-  role_clarity: [
-    { title: "Clarify 30-60-90 expectations", detail: "Write outcomes and ownership.", owner: "Manager" },
-    { title: "Share role charter", detail: "Decision rights and stakeholders.", owner: "Manager" },
-  ],
-  manager_support: [
-    { title: "Protected weekly 1:1", detail: "30 minutes on blockers this week.", owner: "Manager" },
-    { title: "Skip-level pulse", detail: "People Ops light check-in.", owner: "People Ops" },
-  ],
-  social_isolation: [
-    { title: "Schedule buddy coffee", detail: "Buddy + two peer intros.", owner: "Manager" },
-    { title: "Add to team rituals", detail: "Standup, social, next hangout.", owner: "Manager" },
-  ],
-  workload: [
-    { title: "Rebalance sprint load", detail: "Defer one non-critical item.", owner: "Manager" },
-    { title: "Protect onboarding calendar", detail: "Block learning time two weeks.", owner: "Manager" },
-  ],
-  admin_payroll: [
-    { title: "Escalate payroll / admin same day", detail: "Confirm owner and SLA.", owner: "People Ops" },
-  ],
-  none: [
-    { title: "Keep a light check-in", detail: "No urgent friction.", owner: "Manager" },
-  ],
-};
 
 let DATA = null;
+let LIVE = null; // mutable working copy during stream
 let weekChart = null;
-let currentView = "pulse";
 let es = null;
 let streamPaused = false;
-let ivStatus = {};
+let streamed = 0;
+let streamTotal = 0;
+let baseline = null;
 
 function pct(x) {
   return (x * 100).toFixed(0) + "%";
@@ -78,6 +52,17 @@ function blueCellInk(risk) {
   return t > 0.45 ? "#ffffff" : "#1d1d1f";
 }
 
+function levelFromRisk(score, th) {
+  if (score >= th.critical) return "critical";
+  if (score >= th.high) return "high";
+  if (score >= th.medium) return "medium";
+  return "low";
+}
+
+function cloneDeep(x) {
+  return JSON.parse(JSON.stringify(x));
+}
+
 function setConn(state) {
   const dot = document.getElementById("connDot");
   const label = document.getElementById("connLabel");
@@ -100,46 +85,217 @@ function stopStream() {
   }
 }
 
+function softReset() {
+  const th = DATA.meta.risk_thresholds;
+  LIVE = cloneDeep(DATA.aggregates);
+  LIVE.hires = LIVE.hires.map((h) => ({
+    ...h,
+    risk_score: Math.min(0.08, h.risk_score * 0.2),
+    risk_level: "low",
+    evidence: [],
+    signals: [],
+    category_counts: {},
+    signal_count: 0,
+    max_intent: 0,
+    max_blocked: 0,
+  }));
+  LIVE.kpis = {
+    total_hires: LIVE.hires.length,
+    hires_at_risk: 0,
+    avg_risk: 0.04,
+    top_issue: "none",
+    critical_count: 0,
+    high_count: 0,
+    signals_scored: 0,
+  };
+  const teams = LIVE.teams || [...new Set(LIVE.hires.map((h) => h.team))];
+  const cats = LIVE.categories || CAT_ORDER;
+  LIVE.heatmap = teams.map((team) => {
+    const row = { team, team_avg_risk: 0, hires_at_risk: 0 };
+    for (const c of cats) row[c] = { count: 0, avg_risk: null };
+    return row;
+  });
+  LIVE.weekly_curve = Array.from({ length: 13 }, (_, i) => ({
+    week: i + 1,
+    avg_risk: 0.02,
+    n: 0,
+  }));
+  streamed = 0;
+  renderAll(LIVE, { liveMeta: true });
+}
+
+function recomputeFromHires(hires, signalsScored) {
+  const th = DATA.meta.risk_thresholds;
+  const teams = DATA.aggregates.teams || [...new Set(hires.map((h) => h.team))];
+  const cats = DATA.aggregates.categories || CAT_ORDER;
+  let atRisk = 0,
+    critical = 0,
+    high = 0,
+    sum = 0;
+  const catCount = new Map();
+  for (const h of hires) {
+    sum += h.risk_score;
+    if (h.risk_level === "critical") {
+      atRisk++;
+      critical++;
+    } else if (h.risk_level === "high") {
+      atRisk++;
+      high++;
+    }
+    for (const [c, n] of Object.entries(h.category_counts || {})) {
+      catCount.set(c, (catCount.get(c) || 0) + n);
+    }
+  }
+  let top = "none",
+    topN = -1;
+  for (const [c, n] of catCount) {
+    if (c === "none") continue;
+    if (n > topN) {
+      topN = n;
+      top = c;
+    }
+  }
+  const kpis = {
+    total_hires: hires.length,
+    hires_at_risk: atRisk,
+    avg_risk: hires.length ? Math.round((sum / hires.length) * 10000) / 10000 : 0,
+    top_issue: top,
+    critical_count: critical,
+    high_count: high,
+    signals_scored: signalsScored,
+  };
+  const byTeam = new Map();
+  for (const t of teams) byTeam.set(t, []);
+  for (const h of hires) {
+    const list = byTeam.get(h.team) || [];
+    list.push(h);
+    byTeam.set(h.team, list);
+  }
+  const heatmap = teams.map((team) => {
+    const list = byTeam.get(team) || [];
+    const row = {
+      team,
+      team_avg_risk: list.length
+        ? list.reduce((s, h) => s + h.risk_score, 0) / list.length
+        : 0,
+      hires_at_risk: list.filter(
+        (h) => h.risk_level === "critical" || h.risk_level === "high"
+      ).length,
+    };
+    for (const c of cats) {
+      let count = 0,
+        riskSum = 0,
+        riskN = 0;
+      for (const h of list) {
+        count += h.category_counts?.[c] || 0;
+        for (const e of h.evidence || []) {
+          if (e.category === c) {
+            riskSum += e.risk;
+            riskN++;
+          }
+        }
+      }
+      row[c] = { count, avg_risk: riskN ? riskSum / riskN : null };
+    }
+    return row;
+  });
+  const buckets = new Map();
+  for (const h of hires) {
+    for (const s of h.signals || []) {
+      const week = Math.max(1, Math.ceil((s.day || 1) / 7));
+      const b = buckets.get(week) || { sum: 0, n: 0 };
+      b.sum += s.risk;
+      b.n++;
+      buckets.set(week, b);
+    }
+  }
+  const weeks = [...buckets.keys()].sort((a, b) => a - b);
+  const weekly_curve = weeks.length
+    ? weeks.map((week) => {
+        const b = buckets.get(week);
+        return { week, avg_risk: b.sum / b.n, n: b.n };
+      })
+    : Array.from({ length: 13 }, (_, i) => ({ week: i + 1, avg_risk: 0.02, n: 0 }));
+  return {
+    ...LIVE,
+    hires,
+    kpis,
+    heatmap,
+    weekly_curve,
+    teams,
+    categories: cats,
+  };
+}
+
+function applySignal(msg) {
+  if (!LIVE) return;
+  const th = DATA.meta.risk_thresholds;
+  const hires = LIVE.hires;
+  const idx = hires.findIndex((h) => h.id === msg.hire_id);
+  if (idx < 0) return;
+  const h = { ...hires[idx] };
+  const category = msg.scores?.category || "none";
+  const evidence = {
+    signal_id: msg.id,
+    day: msg.day,
+    channel: msg.channel,
+    text: msg.text,
+    category,
+    frustration: msg.scores?.frustration ?? 0,
+    confusion: msg.scores?.confusion ?? 0,
+    intent_to_leave: msg.scores?.intent_to_leave ?? 0,
+    blocked_from_work: msg.scores?.blocked_from_work ?? 0,
+    risk: msg.risk,
+  };
+  const already = (h.signals || []).some((s) => s.signal_id === msg.id);
+  h.category_counts = { ...(h.category_counts || {}) };
+  if (!already) {
+    h.signal_count = (h.signal_count || 0) + 1;
+    h.category_counts[category] = (h.category_counts[category] || 0) + 1;
+  }
+  h.risk_score = Math.max(h.risk_score, msg.risk);
+  h.risk_level = levelFromRisk(h.risk_score, th);
+  if (category !== "none") h.top_category = category;
+  h.evidence = [evidence, ...(h.evidence || []).filter((e) => e.signal_id !== msg.id)].slice(0, 8);
+  h.signals = [
+    { ...evidence, hire_id: h.id },
+    ...(h.signals || []).filter((s) => s.signal_id !== msg.id),
+  ].slice(0, 20);
+  h.max_intent = Math.max(h.max_intent || 0, msg.scores?.intent_to_leave ?? 0);
+  h.max_blocked = Math.max(h.max_blocked || 0, msg.scores?.blocked_from_work ?? 0);
+  hires[idx] = h;
+  streamed += 1;
+  LIVE = recomputeFromHires(hires, streamed);
+  renderAll(LIVE, { liveMeta: true, flashId: msg.hire_id });
+}
+
+function restoreBaseline() {
+  if (!baseline) return;
+  LIVE = cloneDeep(baseline);
+  streamed = 0;
+  renderAll(LIVE, { liveMeta: false });
+}
+
 function startStream() {
+  if (!DATA) return;
   stopStream();
-  const list = document.getElementById("feedList");
-  const empty = document.getElementById("feedEmpty");
-  list.innerHTML = "";
-  empty.style.display = "block";
-  empty.textContent = "Connecting…";
+  softReset();
   setConn("Connecting");
   streamPaused = false;
   es = new EventSource("/api/stream");
   es.onopen = () => setConn("Live");
   es.onmessage = (ev) => {
+    if (streamPaused) return;
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === "signal") {
-        empty.style.display = "none";
-        const level =
-          msg.risk >= 0.45 ? "critical" : msg.risk >= 0.28 ? "high" : msg.risk >= 0.18 ? "medium" : "low";
-        const cat = msg.scores?.category;
-        const li = document.createElement("li");
-        li.dataset.id = msg.hire_id;
-        li.innerHTML = `
-          <div class="avatar">${escapeHtml(initials(msg.hire))}</div>
-          <div style="min-width:0;flex:1">
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-              <strong style="font-size:13px">${escapeHtml(msg.hire)}</strong>
-              <span class="feed-meta">${escapeHtml(msg.team)} · day ${msg.day} · ${escapeHtml(msg.channel)}</span>
-              <span class="badge ${level}">${pct(msg.risk)}</span>
-              ${cat ? `<span class="feed-meta">${escapeHtml(fmtCat(cat))}</span>` : ""}
-              <span class="feed-idx">${msg.index}/${msg.total}</span>
-            </div>
-            <p class="feed-text">${escapeHtml(msg.text)}</p>
-          </div>`;
-        li.addEventListener("click", () => openHire(msg.hire_id));
-        list.insertBefore(li, list.firstChild);
-      } else if (msg.type === "snapshot" && msg.kpis) {
-        renderKpis(msg.kpis);
+      if (msg.type === "meta") {
+        streamTotal = msg.total || 0;
+      } else if (msg.type === "signal") {
+        applySignal(msg);
       } else if (msg.type === "done") {
         setConn("Done");
         stopStream();
+        setTimeout(restoreBaseline, 900);
       }
     } catch (_) {}
   };
@@ -151,116 +307,30 @@ function startStream() {
   };
 }
 
-function setView(name) {
-  if (currentView === "live" && name !== "live") stopStream();
-  currentView = name;
-  document.querySelectorAll(".view").forEach((el) => {
-    el.classList.toggle("active", el.dataset.view === name);
-  });
-  document.querySelectorAll(".nav-item").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.view === name);
-  });
-  const labels = { pulse: "Overview", live: "Live", interventions: "Interventions" };
-  document.getElementById("viewLabel").textContent = labels[name] || name;
-  if (name === "live") startStream();
-  if (name === "interventions") renderInterventions();
-  if (name === "pulse" && DATA) renderKpis(DATA.aggregates.kpis);
-}
-
-function interventionsForHire(h) {
-  const cat = h.top_category || "none";
-  const base = (CATEGORY_ACTIONS[cat] || CATEGORY_ACTIONS.none).slice(0, 2);
-  const items = base.map((a, i) => ({
-    id: `${h.id}-${cat}-${i}`,
-    hire: h,
-    ...a,
-  }));
-  if (h.max_intent >= 0.35) {
-    items.push({
-      id: `${h.id}-leave`,
-      hire: h,
-      title: "Manager 1:1 this week (intent signal)",
-      detail: "Ask about regret or blockers.",
-      owner: "Manager",
-    });
-  } else if (h.max_blocked >= 0.4) {
-    items.push({
-      id: `${h.id}-blocked`,
-      hire: h,
-      title: "Unblock critical path within 24h",
-      detail: "Treat as P1 until they can ship.",
-      owner: "IT / Ops",
-    });
-  }
-  return items.slice(0, 3);
-}
-
-function renderInterventions() {
-  if (!DATA) return;
-  const hires = DATA.aggregates.hires;
-  const flagged = hires.filter((h) => h.risk_level === "critical" || h.risk_level === "high");
-  const list = flagged.length
-    ? flagged
-    : [...hires].sort((a, b) => b.risk_score - a.risk_score).slice(0, 6);
-  const root = document.getElementById("interventionsList");
-  root.innerHTML = list
-    .map((h) => {
-      const items = interventionsForHire(h);
-      const done = items.filter((i) => ivStatus[i.id] === "done").length;
-      return `<section class="iv-card">
-        <div class="iv-card-head">
-          <div class="hire-cell">
-            <div class="avatar">${escapeHtml(initials(h.name))}</div>
-            <div class="hire-meta">
-              <div class="hire-name">${escapeHtml(h.name)}</div>
-              <div class="hire-role">${escapeHtml(h.team)} · ${escapeHtml(fmtCat(h.top_category))}</div>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span class="badge ${escapeHtml(h.risk_level)}">${escapeHtml(h.risk_level)}</span>
-            <span class="feed-meta">${done}/${items.length}</span>
-          </div>
-        </div>
-        ${items
-          .map((iv) => {
-            const isDone = ivStatus[iv.id] === "done";
-            return `<div class="iv-item">
-              <button type="button" class="iv-check ${isDone ? "done" : ""}" data-ivid="${escapeHtml(iv.id)}" aria-pressed="${isDone}">
-                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2 4.8 8.5 9.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </button>
-              <div>
-                <div class="iv-title ${isDone ? "done" : ""}">${escapeHtml(iv.title)}</div>
-                <div class="iv-detail">${escapeHtml(iv.detail)}</div>
-                <span class="iv-owner">${escapeHtml(iv.owner)}</span>
-              </div>
-            </div>`;
-          })
-          .join("")}
-      </section>`;
-    })
-    .join("");
-  root.querySelectorAll(".iv-check").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.ivid;
-      ivStatus[id] = ivStatus[id] === "done" ? "todo" : "done";
-      renderInterventions();
-    });
-  });
+function renderAll(a, opts = {}) {
+  renderKpis(a.kpis, opts);
+  renderHeatmap(a);
+  renderChart(a.weekly_curve);
+  renderRiskTable(a.hires, opts.flashId);
 }
 
 async function load() {
   const res = await fetch("/api/dashboard");
   if (!res.ok) throw new Error("Failed to load dashboard");
   DATA = await res.json();
-  const a = DATA.aggregates;
-  renderKpis(a.kpis);
-  renderHeatmap(a);
-  renderChart(a.weekly_curve);
-  renderRiskTable(a.hires);
+  baseline = cloneDeep(DATA.aggregates);
+  LIVE = cloneDeep(DATA.aggregates);
+  renderAll(LIVE);
+  startStream();
 }
 
-function renderKpis(k) {
+function renderKpis(k, opts = {}) {
   const total = k.total_hires || (DATA && DATA.aggregates.kpis.total_hires) || "";
+  const meta =
+    opts.liveMeta && (document.getElementById("connLabel").textContent === "Live" ||
+      document.getElementById("connLabel").textContent === "Connecting")
+      ? `Live pass ${streamed}${streamTotal ? "/" + streamTotal : ""}`
+      : "Live + precomputed";
   document.getElementById("kpis").innerHTML = `
     <div class="kpi">
       <div class="kpi-label">At risk</div>
@@ -280,7 +350,7 @@ function renderKpis(k) {
     <div class="kpi">
       <div class="kpi-label">Signals scored</div>
       <p class="kpi-value">${k.signals_scored}</p>
-      <div class="kpi-meta">Live + precomputed</div>
+      <div class="kpi-meta">${escapeHtml(meta)}</div>
     </div>`;
 }
 
@@ -338,7 +408,7 @@ function renderChart(curve) {
       scales: {
         y: {
           min: 0,
-          max: Math.max(0.4, ...curve.map((c) => c.avg_risk)) * 1.1,
+          max: Math.max(0.4, ...curve.map((c) => c.avg_risk), 0.01) * 1.1,
           ticks: {
             color: "#86868b",
             font: { size: 11 },
@@ -359,18 +429,21 @@ function renderChart(curve) {
 }
 
 function riskRows(hires) {
-  const atRisk = hires.filter((h) => h.risk_level === "critical" || h.risk_level === "high");
-  return atRisk.length ? atRisk : hires.slice(0, 8);
+  const atRisk = hires
+    .filter((h) => h.risk_level === "critical" || h.risk_level === "high")
+    .sort((a, b) => b.risk_score - a.risk_score);
+  return atRisk.length ? atRisk : [...hires].sort((a, b) => b.risk_score - a.risk_score).slice(0, 8);
 }
 
-function renderRiskTable(hires) {
+function renderRiskTable(hires, flashId) {
   const rows = riskRows(hires);
   const tbody = document.querySelector("#riskTable tbody");
   tbody.innerHTML = rows
     .map((h) => {
       const ev = h.evidence && h.evidence[0];
       const quote = ev ? escapeHtml(ev.text) : "—";
-      return `<tr data-id="${escapeHtml(h.id)}">
+      const flash = flashId === h.id ? ' style="background:#e8f1fb"' : "";
+      return `<tr data-id="${escapeHtml(h.id)}"${flash}>
       <td><div class="hire-cell">
         <div class="avatar">${escapeHtml(initials(h.name))}</div>
         <div class="hire-meta">
@@ -391,19 +464,28 @@ function renderRiskTable(hires) {
 }
 
 async function openHire(id) {
-  const h = await (await fetch("/api/hire/" + id)).json();
+  const local = (LIVE || DATA.aggregates).hires.find((h) => h.id === id);
+  let h = local;
+  try {
+    h = await (await fetch("/api/hire/" + id)).json();
+    if (local && local.evidence?.length) {
+      h = { ...h, evidence: local.evidence, signals: local.signals?.length ? local.signals : h.signals, risk_score: Math.max(h.risk_score, local.risk_score), risk_level: local.risk_level };
+    }
+  } catch (_) {}
+  if (!h) return;
   document.getElementById("drawerTitle").textContent = h.name;
   document.getElementById("drawerSub").textContent =
     `${h.role} · ${h.team} · day ${h.tenure_days}`;
   const body = document.getElementById("drawerBody");
+  const signals = h.signals?.length ? h.signals : h.evidence || [];
   body.innerHTML = `
     <div class="drawer-badges">
       <span class="badge ${escapeHtml(h.risk_level)}">${escapeHtml(h.risk_level)} ${pct(h.risk_score)}</span>
-      <span class="badge ${escapeHtml(h.trend)}">${escapeHtml(h.trend)}</span>
+      <span class="badge ${escapeHtml(h.trend || "stable")}">${escapeHtml(h.trend || "stable")}</span>
       <span class="badge neutral">${escapeHtml(fmtCat(h.top_category))}</span>
     </div>
     <div class="section-label">Signals</div>
-    ${h.signals
+    ${signals
       .map((s) => {
         const level =
           s.risk >= 0.45 ? "critical" : s.risk >= 0.28 ? "high" : s.risk >= 0.18 ? "medium" : "low";
@@ -425,9 +507,6 @@ function closeDrawer() {
   document.getElementById("drawerBackdrop").classList.remove("open");
 }
 
-document.querySelectorAll(".nav-item").forEach((btn) => {
-  btn.addEventListener("click", () => setView(btn.dataset.view));
-});
 document.getElementById("drawerClose").addEventListener("click", closeDrawer);
 document.getElementById("drawerBackdrop").addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => {
