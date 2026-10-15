@@ -157,3 +157,12 @@ onboarding-pulse/
 ## Licence
 
 Demo code for internal / portfolio use. Jev usage subject to [TypeSafe terms](https://docs.typesafe.ai/legal). Example data is fictional.
+
+## Real-time stream
+
+`GET /api/stream` is an SSE feed of example signals (~22 events, ~1s apart, then `done`).  
+The Live tab connects with `EventSource`, updates KPIs via `snapshot` events, and offers Pause / Replay.  
+Pass `?live=1` to optionally re-score each signal with Jev when `TYPESAFE_API_KEY` is set (falls back to cached scores on failure).  
+On serverless hosts, keep the stream finite (~25s); use Replay for another pass.
+
+Tabs: **Overview** · **Live** · **Interventions** (deterministic playbook from category + risk).

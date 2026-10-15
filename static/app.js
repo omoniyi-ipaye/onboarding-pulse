@@ -1,4 +1,4 @@
-/* Onboarding Pulse — dashboard client */
+/* Onboarding Pulse — dense Overview · Live SSE · Interventions */
 const CAT_LABELS = {
   access_tools: "Access / tools",
   role_clarity: "Role clarity",
@@ -8,19 +8,42 @@ const CAT_LABELS = {
   admin_payroll: "Admin / pay",
   none: "None",
 };
-const CAT_ORDER = [
-  "access_tools",
-  "role_clarity",
-  "manager_support",
-  "social_isolation",
-  "workload",
-  "admin_payroll",
-  "none",
-];
+const CAT_ORDER = Object.keys(CAT_LABELS);
+const CATEGORY_ACTIONS = {
+  access_tools: [
+    { title: "Unblock GitHub / SSO within 24h", detail: "Confirm accounts, repos, VPN.", owner: "IT / Ops" },
+    { title: "Access audit with hire", detail: "Walk the tool checklist together.", owner: "Manager" },
+  ],
+  role_clarity: [
+    { title: "Clarify 30-60-90 expectations", detail: "Write outcomes and ownership.", owner: "Manager" },
+    { title: "Share role charter", detail: "Decision rights and stakeholders.", owner: "Manager" },
+  ],
+  manager_support: [
+    { title: "Protected weekly 1:1", detail: "30 minutes on blockers this week.", owner: "Manager" },
+    { title: "Skip-level pulse", detail: "People Ops light check-in.", owner: "People Ops" },
+  ],
+  social_isolation: [
+    { title: "Schedule buddy coffee", detail: "Buddy + two peer intros.", owner: "Manager" },
+    { title: "Add to team rituals", detail: "Standup, social, next hangout.", owner: "Manager" },
+  ],
+  workload: [
+    { title: "Rebalance sprint load", detail: "Defer one non-critical item.", owner: "Manager" },
+    { title: "Protect onboarding calendar", detail: "Block learning time two weeks.", owner: "Manager" },
+  ],
+  admin_payroll: [
+    { title: "Escalate payroll / admin same day", detail: "Confirm owner and SLA.", owner: "People Ops" },
+  ],
+  none: [
+    { title: "Keep a light check-in", detail: "No urgent friction.", owner: "Manager" },
+  ],
+};
 
 let DATA = null;
 let weekChart = null;
 let currentView = "pulse";
+let es = null;
+let streamPaused = false;
+let ivStatus = {};
 
 function pct(x) {
   return (x * 100).toFixed(0) + "%";
@@ -43,8 +66,6 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-/** Action Blue intensity on light canvas — no rainbow */
 function blueCell(risk) {
   if (risk == null) return null;
   const t = Math.max(0, Math.min(1, risk / 0.55));
@@ -57,7 +78,81 @@ function blueCellInk(risk) {
   return t > 0.45 ? "#ffffff" : "#1d1d1f";
 }
 
+function setConn(state) {
+  const dot = document.getElementById("connDot");
+  const label = document.getElementById("connLabel");
+  const toggle = document.getElementById("streamToggle");
+  label.textContent = state;
+  dot.className = "dot muted";
+  if (state === "Live") dot.className = "dot live";
+  else if (state === "Connecting" || state === "Paused") dot.className = "dot warn";
+  if (toggle) {
+    if (state === "Done" || state === "Error" || state === "Idle") toggle.textContent = "Replay";
+    else if (state === "Paused") toggle.textContent = "Resume";
+    else toggle.textContent = "Pause";
+  }
+}
+
+function stopStream() {
+  if (es) {
+    es.close();
+    es = null;
+  }
+}
+
+function startStream() {
+  stopStream();
+  const list = document.getElementById("feedList");
+  const empty = document.getElementById("feedEmpty");
+  list.innerHTML = "";
+  empty.style.display = "block";
+  empty.textContent = "Connecting…";
+  setConn("Connecting");
+  streamPaused = false;
+  es = new EventSource("/api/stream");
+  es.onopen = () => setConn("Live");
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "signal") {
+        empty.style.display = "none";
+        const level =
+          msg.risk >= 0.45 ? "critical" : msg.risk >= 0.28 ? "high" : msg.risk >= 0.18 ? "medium" : "low";
+        const cat = msg.scores?.category;
+        const li = document.createElement("li");
+        li.dataset.id = msg.hire_id;
+        li.innerHTML = `
+          <div class="avatar">${escapeHtml(initials(msg.hire))}</div>
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+              <strong style="font-size:13px">${escapeHtml(msg.hire)}</strong>
+              <span class="feed-meta">${escapeHtml(msg.team)} · day ${msg.day} · ${escapeHtml(msg.channel)}</span>
+              <span class="badge ${level}">${pct(msg.risk)}</span>
+              ${cat ? `<span class="feed-meta">${escapeHtml(fmtCat(cat))}</span>` : ""}
+              <span class="feed-idx">${msg.index}/${msg.total}</span>
+            </div>
+            <p class="feed-text">${escapeHtml(msg.text)}</p>
+          </div>`;
+        li.addEventListener("click", () => openHire(msg.hire_id));
+        list.insertBefore(li, list.firstChild);
+      } else if (msg.type === "snapshot" && msg.kpis) {
+        renderKpis(msg.kpis);
+      } else if (msg.type === "done") {
+        setConn("Done");
+        stopStream();
+      }
+    } catch (_) {}
+  };
+  es.onerror = () => {
+    if (es) {
+      setConn("Error");
+      stopStream();
+    }
+  };
+}
+
 function setView(name) {
+  if (currentView === "live" && name !== "live") stopStream();
   currentView = name;
   document.querySelectorAll(".view").forEach((el) => {
     el.classList.toggle("active", el.dataset.view === name);
@@ -65,32 +160,111 @@ function setView(name) {
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === name);
   });
-  const labels = { pulse: "Overview", hires: "Hires", signals: "Signals" };
+  const labels = { pulse: "Overview", live: "Live", interventions: "Interventions" };
   document.getElementById("viewLabel").textContent = labels[name] || name;
+  if (name === "live") startStream();
+  if (name === "interventions") renderInterventions();
+  if (name === "pulse" && DATA) renderKpis(DATA.aggregates.kpis);
+}
+
+function interventionsForHire(h) {
+  const cat = h.top_category || "none";
+  const base = (CATEGORY_ACTIONS[cat] || CATEGORY_ACTIONS.none).slice(0, 2);
+  const items = base.map((a, i) => ({
+    id: `${h.id}-${cat}-${i}`,
+    hire: h,
+    ...a,
+  }));
+  if (h.max_intent >= 0.35) {
+    items.push({
+      id: `${h.id}-leave`,
+      hire: h,
+      title: "Manager 1:1 this week (intent signal)",
+      detail: "Ask about regret or blockers.",
+      owner: "Manager",
+    });
+  } else if (h.max_blocked >= 0.4) {
+    items.push({
+      id: `${h.id}-blocked`,
+      hire: h,
+      title: "Unblock critical path within 24h",
+      detail: "Treat as P1 until they can ship.",
+      owner: "IT / Ops",
+    });
+  }
+  return items.slice(0, 3);
+}
+
+function renderInterventions() {
+  if (!DATA) return;
+  const hires = DATA.aggregates.hires;
+  const flagged = hires.filter((h) => h.risk_level === "critical" || h.risk_level === "high");
+  const list = flagged.length
+    ? flagged
+    : [...hires].sort((a, b) => b.risk_score - a.risk_score).slice(0, 6);
+  const root = document.getElementById("interventionsList");
+  root.innerHTML = list
+    .map((h) => {
+      const items = interventionsForHire(h);
+      const done = items.filter((i) => ivStatus[i.id] === "done").length;
+      return `<section class="iv-card">
+        <div class="iv-card-head">
+          <div class="hire-cell">
+            <div class="avatar">${escapeHtml(initials(h.name))}</div>
+            <div class="hire-meta">
+              <div class="hire-name">${escapeHtml(h.name)}</div>
+              <div class="hire-role">${escapeHtml(h.team)} · ${escapeHtml(fmtCat(h.top_category))}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge ${escapeHtml(h.risk_level)}">${escapeHtml(h.risk_level)}</span>
+            <span class="feed-meta">${done}/${items.length}</span>
+          </div>
+        </div>
+        ${items
+          .map((iv) => {
+            const isDone = ivStatus[iv.id] === "done";
+            return `<div class="iv-item">
+              <button type="button" class="iv-check ${isDone ? "done" : ""}" data-ivid="${escapeHtml(iv.id)}" aria-pressed="${isDone}">
+                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2 4.8 8.5 9.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </button>
+              <div>
+                <div class="iv-title ${isDone ? "done" : ""}">${escapeHtml(iv.title)}</div>
+                <div class="iv-detail">${escapeHtml(iv.detail)}</div>
+                <span class="iv-owner">${escapeHtml(iv.owner)}</span>
+              </div>
+            </div>`;
+          })
+          .join("")}
+      </section>`;
+    })
+    .join("");
+  root.querySelectorAll(".iv-check").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.ivid;
+      ivStatus[id] = ivStatus[id] === "done" ? "todo" : "done";
+      renderInterventions();
+    });
+  });
 }
 
 async function load() {
   const res = await fetch("/api/dashboard");
   if (!res.ok) throw new Error("Failed to load dashboard");
   DATA = await res.json();
-  const m = DATA.meta;
   const a = DATA.aggregates;
-  const k = a.kpis;
-  document.getElementById("metaLine").textContent =
-    `As of ${m.as_of} · ${k.signals_scored} signals · ${m.usage.input_tokens.toLocaleString()} tokens · $${m.usage.cost_usd.toFixed(5)} · ${m.model}`;
-  renderKpis(k);
+  renderKpis(a.kpis);
   renderHeatmap(a);
   renderChart(a.weekly_curve);
   renderRiskTable(a.hires);
-  renderHiresView(a.hires);
-  renderSignalsView(a.hires);
 }
 
 function renderKpis(k) {
+  const total = k.total_hires || (DATA && DATA.aggregates.kpis.total_hires) || "";
   document.getElementById("kpis").innerHTML = `
     <div class="kpi">
       <div class="kpi-label">At risk</div>
-      <p class="kpi-value danger">${k.hires_at_risk}<span class="unit">/ ${k.total_hires}</span></p>
+      <p class="kpi-value danger">${k.hires_at_risk}<span class="unit">/ ${total}</span></p>
       <div class="kpi-meta">${k.critical_count} critical · ${k.high_count} high</div>
     </div>
     <div class="kpi">
@@ -100,13 +274,13 @@ function renderKpis(k) {
     </div>
     <div class="kpi">
       <div class="kpi-label">Top issue</div>
-      <p class="kpi-value" style="font-size:20px;letter-spacing:-0.4px">${escapeHtml(fmtCat(k.top_issue))}</p>
-      <div class="kpi-meta">Most common non-positive category</div>
+      <p class="kpi-value" style="font-size:18px;letter-spacing:-0.4px">${escapeHtml(fmtCat(k.top_issue))}</p>
+      <div class="kpi-meta">Most common friction</div>
     </div>
     <div class="kpi">
       <div class="kpi-label">Signals scored</div>
       <p class="kpi-value">${k.signals_scored}</p>
-      <div class="kpi-meta">5 questions batched per request</div>
+      <div class="kpi-meta">Live + precomputed</div>
     </div>`;
 }
 
@@ -124,7 +298,7 @@ function renderHeatmap(a) {
       } else {
         const bg = blueCell(cell.avg_risk);
         const ink = blueCellInk(cell.avg_risk);
-        html += `<div class="hm-cell" style="background:${bg};color:${ink}"><strong>${pct(cell.avg_risk)}</strong><em>${cell.count}</em></div>`;
+        html += `<div class="hm-cell" style="background:${bg};color:${ink}"><strong>${pct(cell.avg_risk)}</strong></div>`;
       }
     }
   }
@@ -132,9 +306,7 @@ function renderHeatmap(a) {
   const wrap = document.getElementById("heatmap");
   wrap.innerHTML = html;
   const hm = wrap.querySelector(".hm");
-  if (hm) {
-    hm.style.gridTemplateColumns = `120px repeat(${cats.length}, minmax(56px, 1fr))`;
-  }
+  if (hm) hm.style.gridTemplateColumns = `100px repeat(${cats.length}, minmax(48px, 1fr))`;
 }
 
 function renderChart(curve) {
@@ -154,9 +326,7 @@ function renderChart(curve) {
           fill: false,
           tension: 0.3,
           pointRadius: 2.5,
-          pointHoverRadius: 4,
           pointBackgroundColor: "#0066cc",
-          pointBorderColor: "#0066cc",
           pointBorderWidth: 0,
         },
       ],
@@ -164,32 +334,16 @@ function renderChart(curve) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { intersect: false, mode: "index" },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: "#1d1d1f",
-          titleColor: "#ffffff",
-          bodyColor: "#e5e5ea",
-          borderColor: "#3a3a3c",
-          borderWidth: 1,
-          padding: 10,
-          displayColors: false,
-          callbacks: {
-            label: (ctx) =>
-              `Risk ${pct(ctx.parsed.y)} · n=${curve[ctx.dataIndex].n}`,
-          },
-        },
-      },
+      plugins: { legend: { display: false } },
       scales: {
         y: {
           min: 0,
-          max: 1,
+          max: Math.max(0.4, ...curve.map((c) => c.avg_risk)) * 1.1,
           ticks: {
             color: "#86868b",
             font: { size: 11 },
-            callback: (v) => v * 100 + "%",
-            maxTicksLimit: 5,
+            callback: (v) => Math.round(v * 100) + "%",
+            maxTicksLimit: 4,
           },
           grid: { color: "#e5e5ea", drawBorder: false },
           border: { display: false },
@@ -205,9 +359,7 @@ function renderChart(curve) {
 }
 
 function riskRows(hires) {
-  const atRisk = hires.filter(
-    (h) => h.risk_level === "critical" || h.risk_level === "high"
-  );
+  const atRisk = hires.filter((h) => h.risk_level === "critical" || h.risk_level === "high");
   return atRisk.length ? atRisk : hires.slice(0, 8);
 }
 
@@ -229,71 +381,7 @@ function renderRiskTable(hires) {
       <td class="team-cell">${escapeHtml(h.team)}</td>
       <td class="day-cell">${h.tenure_days}</td>
       <td><span class="badge ${escapeHtml(h.risk_level)}">${escapeHtml(h.risk_level)} ${pct(h.risk_score)}</span></td>
-      <td><span class="badge ${escapeHtml(h.trend)}">${escapeHtml(h.trend)}</span></td>
       <td class="quote-cell" title="${quote}">${quote}</td>
-    </tr>`;
-    })
-    .join("");
-  tbody.querySelectorAll("tr").forEach((tr) =>
-    tr.addEventListener("click", () => openHire(tr.dataset.id))
-  );
-}
-
-function renderHiresView(hires) {
-  const sorted = [...hires].sort((a, b) => b.risk_score - a.risk_score);
-  document.getElementById("hiresCount").textContent = `${sorted.length} hires`;
-  const tbody = document.querySelector("#hiresTable tbody");
-  tbody.innerHTML = sorted
-    .map(
-      (h) => `<tr data-id="${escapeHtml(h.id)}">
-      <td><div class="hire-cell">
-        <div class="avatar">${escapeHtml(initials(h.name))}</div>
-        <div class="hire-meta">
-          <div class="hire-name">${escapeHtml(h.name)}</div>
-          <div class="hire-role">${escapeHtml(h.role)}</div>
-        </div>
-      </div></td>
-      <td class="team-cell">${escapeHtml(h.team)}</td>
-      <td class="day-cell">${h.tenure_days}</td>
-      <td><span class="badge ${escapeHtml(h.risk_level)}">${escapeHtml(h.risk_level)} ${pct(h.risk_score)}</span></td>
-      <td><span class="badge ${escapeHtml(h.trend)}">${escapeHtml(h.trend)}</span></td>
-      <td class="team-cell">${escapeHtml(fmtCat(h.top_category))}</td>
-      <td class="day-cell">${h.signal_count}</td>
-    </tr>`
-    )
-    .join("");
-  tbody.querySelectorAll("tr").forEach((tr) =>
-    tr.addEventListener("click", () => openHire(tr.dataset.id))
-  );
-}
-
-function renderSignalsView(hires) {
-  const signals = [];
-  for (const h of hires) {
-    for (const s of h.signals || []) {
-      signals.push({ ...s, hire_id: h.id, hire_name: h.name, team: h.team });
-    }
-  }
-  signals.sort((a, b) => b.risk - a.risk);
-  const top = signals.slice(0, 40);
-  document.getElementById("signalsCount").textContent = `${signals.length} signals · showing ${top.length}`;
-  const tbody = document.querySelector("#signalsTable tbody");
-  tbody.innerHTML = top
-    .map((s) => {
-      const level =
-        s.risk >= 0.45 ? "critical" : s.risk >= 0.28 ? "high" : s.risk >= 0.18 ? "medium" : "low";
-      return `<tr data-id="${escapeHtml(s.hire_id)}">
-      <td><div class="hire-cell">
-        <div class="avatar">${escapeHtml(initials(s.hire_name))}</div>
-        <div class="hire-meta">
-          <div class="hire-name">${escapeHtml(s.hire_name)}</div>
-          <div class="hire-role">${escapeHtml(s.team)} · ${escapeHtml(s.channel)}</div>
-        </div>
-      </div></td>
-      <td class="day-cell">${s.day}</td>
-      <td><span class="badge ${level}">${pct(s.risk)}</span></td>
-      <td class="team-cell">${escapeHtml(fmtCat(s.category))}</td>
-      <td class="quote-cell" title="${escapeHtml(s.text)}">${escapeHtml(s.text)}</td>
     </tr>`;
     })
     .join("");
@@ -306,7 +394,7 @@ async function openHire(id) {
   const h = await (await fetch("/api/hire/" + id)).json();
   document.getElementById("drawerTitle").textContent = h.name;
   document.getElementById("drawerSub").textContent =
-    `${h.role} · ${h.team} · ${h.location} · Manager ${h.manager} · day ${h.tenure_days}`;
+    `${h.role} · ${h.team} · day ${h.tenure_days}`;
   const body = document.getElementById("drawerBody");
   body.innerHTML = `
     <div class="drawer-badges">
@@ -314,31 +402,17 @@ async function openHire(id) {
       <span class="badge ${escapeHtml(h.trend)}">${escapeHtml(h.trend)}</span>
       <span class="badge neutral">${escapeHtml(fmtCat(h.top_category))}</span>
     </div>
-    <div class="stat-row">
-      <div class="stat-tile"><div class="l">Leave intent (max)</div><div class="v">${pct(h.max_intent)}</div></div>
-      <div class="stat-tile"><div class="l">Blocked (max)</div><div class="v">${pct(h.max_blocked)}</div></div>
-      <div class="stat-tile"><div class="l">Frustration avg</div><div class="v">${h.avg_frustration.toFixed(2)} / 3</div></div>
-      <div class="stat-tile"><div class="l">Confusion avg</div><div class="v">${h.avg_confusion.toFixed(2)} / 3</div></div>
-    </div>
     <div class="section-label">Signals</div>
     ${h.signals
       .map((s) => {
         const level =
-          s.risk >= 0.45
-            ? "critical"
-            : s.risk >= 0.28
-              ? "high"
-              : s.risk >= 0.18
-                ? "medium"
-                : "low";
+          s.risk >= 0.45 ? "critical" : s.risk >= 0.28 ? "high" : s.risk >= 0.18 ? "medium" : "low";
         return `<div class="signal-card">
         <div class="sig-top">
-          <span class="sig-day">Day ${s.day}</span>
+          <span class="sig-day">Day ${s.day} · ${escapeHtml(s.channel)}</span>
           <span class="badge ${level}">${pct(s.risk)}</span>
         </div>
-        <div class="sig-meta">${escapeHtml(s.channel)} · ${escapeHtml(fmtCat(s.category))}</div>
         <div class="sig-text">${escapeHtml(s.text)}</div>
-        <div class="sig-meta">frustration ${s.frustration.toFixed(2)} · confusion ${s.confusion.toFixed(2)} · leave ${pct(s.intent_to_leave)} · blocked ${pct(s.blocked_from_work)}</div>
       </div>`;
       })
       .join("")}`;
@@ -358,6 +432,21 @@ document.getElementById("drawerClose").addEventListener("click", closeDrawer);
 document.getElementById("drawerBackdrop").addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeDrawer();
+});
+
+document.getElementById("streamToggle").addEventListener("click", () => {
+  const label = document.getElementById("connLabel").textContent;
+  if (label === "Done" || label === "Error" || label === "Idle") {
+    startStream();
+    return;
+  }
+  if (!streamPaused) {
+    streamPaused = true;
+    stopStream();
+    setConn("Paused");
+  } else {
+    startStream();
+  }
 });
 
 document.getElementById("liveForm").addEventListener("submit", async (e) => {
@@ -386,9 +475,7 @@ document.getElementById("liveForm").addEventListener("submit", async (e) => {
       <div class="meter"><span style="width:${Math.min(100, r.risk * 100)}%"></span></div>
       <div class="live-stats">
         Risk <strong style="color:var(--ink)">${pct(r.risk)}</strong><br>
-        frustration ${r.frustration.toFixed(2)} · confusion ${r.confusion.toFixed(2)}<br>
-        leave ${pct(r.intent_to_leave)} · blocked ${pct(r.blocked_from_work)}<br>
-        <span style="color:var(--ink-tertiary)">${r.usage?.input_tokens || "?"} tokens · ${escapeHtml(r.model || "")}</span>
+        leave ${pct(r.intent_to_leave)} · blocked ${pct(r.blocked_from_work)}
       </div>`;
   } catch (err) {
     out.innerHTML = `<div class="live-error">${escapeHtml(err.message)}</div>`;
@@ -399,5 +486,5 @@ document.getElementById("liveForm").addEventListener("submit", async (e) => {
 });
 
 load().catch((err) => {
-  document.getElementById("metaLine").textContent = "Failed to load: " + err;
+  document.getElementById("kpis").textContent = "Failed to load: " + err;
 });
