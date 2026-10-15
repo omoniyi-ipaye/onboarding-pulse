@@ -8,6 +8,13 @@ New hires leave in the first 90 days for reasons that are often visible in Slack
 
 ![Dashboard](screenshot.png)
 
+
+## Design
+
+Light product UI combining **Apple** (museum whitespace, Action Blue `#0066cc`), **Tesla** (radical subtraction, calm headlines), and **Linear** (8px radius, hairline panels, dense tables). Motion uses the same ease curve as [omoniyios.com](https://www.omoniyios.com) (`cubic-bezier(0.16, 1, 0.3, 1)`).
+
+Live demo on the site: [omoniyios.com/pulse](https://www.omoniyios.com/pulse) (set `TYPESAFE_API_KEY` in Vercel for live scoring).
+
 ## Quick start
 
 ```bash

@@ -44,16 +44,17 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-/** Monochrome charcoal → lavender intensity for heatmap cells */
-function lavenderCell(risk) {
+/** Action Blue intensity on light canvas — no rainbow */
+function blueCell(risk) {
   if (risk == null) return null;
   const t = Math.max(0, Math.min(1, risk / 0.55));
-  // Blend surface-2 (#141516) → primary (#5e6ad2)
-  const r = Math.round(20 + (94 - 20) * t);
-  const g = Math.round(21 + (106 - 21) * t);
-  const b = Math.round(22 + (210 - 22) * t);
-  const a = 0.35 + 0.55 * t;
-  return `rgba(${r},${g},${b},${a.toFixed(2)})`;
+  const a = 0.08 + 0.72 * t;
+  return `rgba(0, 102, 204, ${a.toFixed(3)})`;
+}
+function blueCellInk(risk) {
+  if (risk == null) return "#aeaeb2";
+  const t = Math.max(0, Math.min(1, risk / 0.55));
+  return t > 0.45 ? "#ffffff" : "#1d1d1f";
 }
 
 function setView(name) {
@@ -121,13 +122,19 @@ function renderHeatmap(a) {
       if (!cell || cell.count === 0) {
         html += `<div class="hm-cell empty"><strong>—</strong></div>`;
       } else {
-        const bg = lavenderCell(cell.avg_risk);
-        html += `<div class="hm-cell" style="background:${bg}"><strong>${pct(cell.avg_risk)}</strong><em>${cell.count}</em></div>`;
+        const bg = blueCell(cell.avg_risk);
+        const ink = blueCellInk(cell.avg_risk);
+        html += `<div class="hm-cell" style="background:${bg};color:${ink}"><strong>${pct(cell.avg_risk)}</strong><em>${cell.count}</em></div>`;
       }
     }
   }
   html += `</div>`;
-  document.getElementById("heatmap").innerHTML = html;
+  const wrap = document.getElementById("heatmap");
+  wrap.innerHTML = html;
+  const hm = wrap.querySelector(".hm");
+  if (hm) {
+    hm.style.gridTemplateColumns = `120px repeat(${cats.length}, minmax(56px, 1fr))`;
+  }
 }
 
 function renderChart(curve) {
@@ -141,15 +148,15 @@ function renderChart(curve) {
         {
           label: "Avg risk",
           data: curve.map((c) => c.avg_risk),
-          borderColor: "#5e6ad2",
+          borderColor: "#0066cc",
           backgroundColor: "transparent",
           borderWidth: 1.5,
           fill: false,
           tension: 0.3,
           pointRadius: 2.5,
           pointHoverRadius: 4,
-          pointBackgroundColor: "#5e6ad2",
-          pointBorderColor: "#5e6ad2",
+          pointBackgroundColor: "#0066cc",
+          pointBorderColor: "#0066cc",
           pointBorderWidth: 0,
         },
       ],
@@ -161,10 +168,10 @@ function renderChart(curve) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: "#141516",
-          titleColor: "#f7f8f8",
-          bodyColor: "#d0d6e0",
-          borderColor: "#23252a",
+          backgroundColor: "#1d1d1f",
+          titleColor: "#ffffff",
+          bodyColor: "#e5e5ea",
+          borderColor: "#3a3a3c",
           borderWidth: 1,
           padding: 10,
           displayColors: false,
@@ -179,16 +186,16 @@ function renderChart(curve) {
           min: 0,
           max: 1,
           ticks: {
-            color: "#62666d",
+            color: "#86868b",
             font: { size: 11 },
             callback: (v) => v * 100 + "%",
             maxTicksLimit: 5,
           },
-          grid: { color: "#23252a", drawBorder: false },
+          grid: { color: "#e5e5ea", drawBorder: false },
           border: { display: false },
         },
         x: {
-          ticks: { color: "#62666d", font: { size: 11 } },
+          ticks: { color: "#86868b", font: { size: 11 } },
           grid: { display: false },
           border: { display: false },
         },
